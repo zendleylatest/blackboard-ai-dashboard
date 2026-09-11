@@ -1,0 +1,14 @@
+steps:
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - build
+      - "--build-arg"
+      - "VITE_API_BASE_URL=${_API_BASE_URL}"
+      - "-t"
+      - "${_IMAGE}"
+      - "."
+images:
+  - "${_IMAGE}"
+substitutions:
+  _IMAGE: "local"
+  _API_BASE_URL: ""
