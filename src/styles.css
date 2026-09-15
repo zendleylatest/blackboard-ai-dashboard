@@ -548,6 +548,7 @@ button.ghost:hover {
   align-items: flex-end;
   justify-content: space-between;
   gap: 20px;
+  flex-wrap: wrap;
 }
 
 .bulk-actions {
@@ -586,18 +587,36 @@ button.ghost:hover {
 }
 
 .users-table {
-  min-width: 1050px;
+  min-width: 1400px;
 }
 
 .user-row {
   display: grid;
-  grid-template-columns: 34px minmax(220px, 1.7fr) 90px 90px 110px 115px 180px 150px;
+  grid-template-columns: 34px minmax(220px, 1.7fr) 90px 90px 80px 110px 115px 180px 100px 90px 180px;
   gap: 14px;
   align-items: center;
   min-height: 66px;
   border-bottom: 1px solid var(--border);
   color: var(--text-muted);
   font-size: 13px;
+}
+
+.user-filters {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.user-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
 .user-actions {

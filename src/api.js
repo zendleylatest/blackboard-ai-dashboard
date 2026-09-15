@@ -170,9 +170,41 @@ export async function fetchTopUsers({ startDate, endDate, page = 1, pageSize = 4
   return request(`/analytics/top-users/${query}`, { method: "GET" }, { auth: true });
 }
 
-export async function fetchManagedUsers({ search = "", page = 1, pageSize = 20 }) {
-  const query = buildQuery({ search, page, page_size: pageSize });
+export async function fetchManagedUsers({
+  search = "",
+  plan = "",
+  startDate = "",
+  endDate = "",
+  page = 1,
+  pageSize = 20,
+}) {
+  const query = buildQuery({
+    search,
+    plan,
+    start_date: startDate,
+    end_date: endDate,
+    page,
+    page_size: pageSize,
+  });
   return request(`/analytics/users/${query}`, { method: "GET" }, { auth: true });
+}
+
+export async function banManagedUser(userId) {
+  const response = await request(
+    `/analytics/users/${encodeURIComponent(userId)}/ban/`,
+    { method: "POST" },
+    { auth: true }
+  );
+  return response.user;
+}
+
+export async function unbanManagedUser(userId) {
+  const response = await request(
+    `/analytics/users/${encodeURIComponent(userId)}/unban/`,
+    { method: "POST" },
+    { auth: true }
+  );
+  return response.user;
 }
 
 export async function fetchManagedUser(userId) {

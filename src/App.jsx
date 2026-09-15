@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  banManagedUser,
   deleteManagedUser,
   deleteManagedUsers,
   fetchAnalyticsSummary,
@@ -10,8 +11,16 @@ import {
   getStoredUser,
   login,
   logout,
+  unbanManagedUser,
   updateManagedUser,
 } from "./api.js";
+
+function formatCost(value) {
+  const amount = Number(value || 0);
+  if (amount === 0) return "$0.00";
+  if (amount < 0.01) return `$${amount.toFixed(4)}`;
+  return `$${amount.toFixed(2)}`;
+}
 
 function formatNumber(value) {
   return new Intl.NumberFormat().format(value || 0);
@@ -495,12 +504,16 @@ function UsersPage({ currentAdminId, onEditUser }) {
   const [users, setUsers] = useState([]);
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
+  const [plan, setPlan] = useState("all");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [deletingId, setDeletingId] = useState(null);
+  const [banningId, setBanningId] = useState(null);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
 
@@ -510,6 +523,9 @@ function UsersPage({ currentAdminId, onEditUser }) {
       setError("");
       const data = await fetchManagedUsers({
         search: nextSearch,
+        plan,
+        startDate,
+        endDate,
         page: nextPage,
         pageSize: 20,
       });
@@ -525,13 +541,46 @@ function UsersPage({ currentAdminId, onEditUser }) {
 
   useEffect(() => {
     loadUsers(page, search);
-  }, [page, search]);
+  }, [page, search, plan, startDate, endDate]);
 
   const handleSearch = (event) => {
     event.preventDefault();
     setNotice("");
     setPage(1);
     setSearch(searchInput.trim());
+  };
+
+  const handleFilterChange = () => {
+    setNotice("");
+    setPage(1);
+  };
+
+  const handleToggleBan = async (user) => {
+    const banning = user.is_active;
+    const confirmed = window.confirm(
+      banning
+        ? `Ban ${user.email}? They will be immediately signed out and unable to sign in.`
+        : `Unban ${user.email}? They will be able to sign in again.`
+    );
+    if (!confirmed) return;
+
+    try {
+      setBanningId(user.id);
+      setError("");
+      setNotice("");
+      if (banning) {
+        await banManagedUser(user.id);
+        setNotice(`${user.email} was banned.`);
+      } else {
+        await unbanManagedUser(user.id);
+        setNotice(`${user.email} was unbanned.`);
+      }
+      await loadUsers(page, search);
+    } catch (err) {
+      setError(err.message || "Failed to update the user's ban status.");
+    } finally {
+      setBanningId(null);
+    }
   };
 
   const handleDelete = async (user) => {
@@ -638,6 +687,59 @@ function UsersPage({ currentAdminId, onEditUser }) {
             </button>
           )}
         </form>
+        <div className="user-filters">
+          <label>
+            <span>Plan</span>
+            <select
+              value={plan}
+              onChange={(event) => {
+                setPlan(event.target.value);
+                handleFilterChange();
+              }}
+            >
+              <option value="all">All plans</option>
+              <option value="free">Free</option>
+              <option value="plus">Plus</option>
+              <option value="pro">Pro</option>
+            </select>
+          </label>
+          <label>
+            <span>Joined from</span>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(event) => {
+                setStartDate(event.target.value);
+                handleFilterChange();
+              }}
+            />
+          </label>
+          <label>
+            <span>Joined to</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(event) => {
+                setEndDate(event.target.value);
+                handleFilterChange();
+              }}
+            />
+          </label>
+          {(plan !== "all" || startDate || endDate) && (
+            <button
+              className="ghost"
+              type="button"
+              onClick={() => {
+                setPlan("all");
+                setStartDate("");
+                setEndDate("");
+                handleFilterChange();
+              }}
+            >
+              Reset filters
+            </button>
+          )}
+        </div>
         <div className="bulk-actions">
           <span className="subtle">
             {selectedIds.size > 0
@@ -681,9 +783,12 @@ function UsersPage({ currentAdminId, onEditUser }) {
                 <div>User</div>
                 <div>Role</div>
                 <div>Provider</div>
+                <div>Plan</div>
                 <div>Status</div>
                 <div>Joined</div>
                 <div>Last login</div>
+                <div>AI tokens</div>
+                <div>Est. cost</div>
                 <div>Actions</div>
               </div>
               {users.map((user) => {
@@ -691,6 +796,7 @@ function UsersPage({ currentAdminId, onEditUser }) {
                   String(user.role || "").toLowerCase()
                 );
                 const protectedUser = isProtected(user);
+                const aiUsage = user.ai_usage || { total_tokens: 0, estimated_cost_usd: 0 };
                 return (
                   <div className={`user-row ${selectedIds.has(user.id) ? "selected" : ""}`} key={user.id}>
                     <div className="selection-cell">
@@ -708,12 +814,15 @@ function UsersPage({ currentAdminId, onEditUser }) {
                     </div>
                     <div><span className={`badge ${isAdmin ? "admin" : ""}`}>{user.role}</span></div>
                     <div>{user.auth_provider || "email"}</div>
+                    <div><span className={`badge ${user.effective_plan && user.effective_plan !== "free" ? "admin" : ""}`}>{user.effective_plan || "free"}</span></div>
                     <div>
                       <span className={`status-dot ${user.is_active && user.is_verified ? "active" : "inactive"}`} />
-                      {user.is_active ? (user.is_verified ? "Active" : "Unverified") : "Inactive"}
+                      {user.is_active ? (user.is_verified ? "Active" : "Unverified") : "Banned"}
                     </div>
                     <div>{formatDateLabel(user.created_at)}</div>
                     <div>{formatDateTime(user.last_login)}</div>
+                    <div>{formatNumber(aiUsage.total_tokens)}</div>
+                    <div>{formatCost(aiUsage.estimated_cost_usd)}</div>
                     <div className="user-actions">
                       <button
                         className="ghost"
@@ -721,6 +830,19 @@ function UsersPage({ currentAdminId, onEditUser }) {
                         onClick={() => onEditUser(user.id)}
                       >
                         Edit
+                      </button>
+                      <button
+                        className="ghost"
+                        type="button"
+                        disabled={protectedUser || banningId === user.id}
+                        title={protectedUser ? "Admin accounts are protected" : (user.is_active ? "Ban user" : "Unban user")}
+                        onClick={() => handleToggleBan(user)}
+                      >
+                        {banningId === user.id
+                          ? "Updating..."
+                          : protectedUser
+                            ? "Protected"
+                            : user.is_active ? "Ban" : "Unban"}
                       </button>
                       <button
                         className="danger-button"
