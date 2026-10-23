@@ -246,3 +246,15 @@ export async function deleteManagedUsers(userIds) {
     { auth: true }
   );
 }
+
+export async function sendBroadcastNotification({ title, body, tier = "" }) {
+  const response = await request(
+    "/analytics/notifications/broadcast/",
+    {
+      method: "POST",
+      body: JSON.stringify({ title, body, tier: tier || null }),
+    },
+    { auth: true }
+  );
+  return unwrapData(response);
+}

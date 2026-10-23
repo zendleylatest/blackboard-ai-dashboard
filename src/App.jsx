@@ -6,6 +6,7 @@ import {
   fetchAnalyticsSummary,
   fetchManagedUser,
   fetchManagedUsers,
+  sendBroadcastNotification,
   fetchProfile,
   fetchTopUsers,
   getStoredUser,
@@ -57,6 +58,70 @@ function formatDateTime(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString();
+}
+
+function NotificationComposer() {
+  const [title, setTitle] = useState("");
+  const [message, setMessage] = useState("");
+  const [tier, setTier] = useState("");
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState("");
+  const [error, setError] = useState("");
+
+  const send = async (event) => {
+    event.preventDefault();
+    const audience = tier ? `${tier} plan users` : "all users";
+    if (!window.confirm(`Send this notification to ${audience}?`)) return;
+    try {
+      setSending(true);
+      setError("");
+      setResult("");
+      const data = await sendBroadcastNotification({ title, body: message, tier });
+      if (data?.status === "no_active_tokens") {
+        setResult("No devices to send to yet (no one has registered for notifications).");
+      } else {
+        setResult(`Sent to ${data?.success ?? 0} device(s)${data?.failure ? `, ${data.failure} failed` : ""}.`);
+        setTitle("");
+        setMessage("");
+      }
+    } catch (err) {
+      setError(err.message || "Failed to send notification.");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <section className="panel">
+      <div className="panel-header">
+        <h2>Send push notification</h2>
+      </div>
+      <form className="user-search" onSubmit={send}>
+        <label>
+          <span>Title</span>
+          <input value={title} maxLength={120} required onChange={(e) => setTitle(e.target.value)} />
+        </label>
+        <label>
+          <span>Message</span>
+          <input value={message} maxLength={500} required onChange={(e) => setMessage(e.target.value)} />
+        </label>
+        <label>
+          <span>Audience</span>
+          <select value={tier} onChange={(e) => setTier(e.target.value)}>
+            <option value="">All users</option>
+            <option value="free">Free plan</option>
+            <option value="plus">Plus plan</option>
+            <option value="pro">Pro plan</option>
+          </select>
+        </label>
+        <button className="primary" type="submit" disabled={sending}>
+          {sending ? "Sending..." : "Send"}
+        </button>
+      </form>
+      {result && <p className="subtle">{result}</p>}
+      {error && <p className="error">{error}</p>}
+    </section>
+  );
 }
 
 function Logo({ size = 32 }) {
@@ -661,6 +726,7 @@ function UsersPage({ currentAdminId, onEditUser }) {
 
   return (
     <section className="users-page">
+      <NotificationComposer />
       <div className="panel users-toolbar">
         <form className="user-search" onSubmit={handleSearch}>
           <label>
@@ -725,6 +791,14 @@ function UsersPage({ currentAdminId, onEditUser }) {
               }}
             />
           </label>
+          <button
+            className="ghost"
+            type="button"
+            disabled={loading}
+            onClick={() => loadUsers(page, search)}
+          >
+            {loading ? "Refreshing..." : "Refresh"}
+          </button>
           {(plan !== "all" || startDate || endDate) && (
             <button
               className="ghost"
