@@ -7,6 +7,7 @@ import {
   fetchManagedUser,
   fetchManagedUsers,
   sendBroadcastNotification,
+  fetchNotificationStatus,
   fetchProfile,
   fetchTopUsers,
   getStoredUser,
@@ -67,6 +68,13 @@ function NotificationComposer() {
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState("");
   const [error, setError] = useState("");
+  const [status, setStatus] = useState(null);
+
+  useEffect(() => {
+    fetchNotificationStatus().then(setStatus).catch(() => setStatus(null));
+  }, []);
+
+  const notConfigured = status && !status.configured;
 
   const send = async (event) => {
     event.preventDefault();
@@ -96,6 +104,19 @@ function NotificationComposer() {
       <div className="panel-header">
         <h2>Send push notification</h2>
       </div>
+      {notConfigured && (
+        <p className="error">
+          Push notifications are not set up on the server yet. Add the Firebase
+          service-account file (credentials/firebase-service-account.json) and
+          restart the backend.
+        </p>
+      )}
+      {status?.configured && (
+        <p className="subtle">
+          {status.registered_devices} registered device(s). Notifications only
+          reach people who allowed them on their phone.
+        </p>
+      )}
       <form className="user-search" onSubmit={send}>
         <label>
           <span>Title</span>
@@ -114,7 +135,7 @@ function NotificationComposer() {
             <option value="pro">Pro plan</option>
           </select>
         </label>
-        <button className="primary" type="submit" disabled={sending}>
+        <button className="primary" type="submit" disabled={sending || notConfigured}>
           {sending ? "Sending..." : "Send"}
         </button>
       </form>

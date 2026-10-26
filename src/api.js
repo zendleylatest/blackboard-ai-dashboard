@@ -258,3 +258,12 @@ export async function sendBroadcastNotification({ title, body, tier = "" }) {
   );
   return unwrapData(response);
 }
+
+export async function fetchNotificationStatus() {
+  const response = await request(
+    "/analytics/notifications/status/",
+    { method: "GET" },
+    { auth: true }
+  );
+  return unwrapData(response);
+}
